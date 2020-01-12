@@ -1543,6 +1543,8 @@ setup(void)
 	XSetWindowAttributes wa;
 	Atom utf8string;
 	struct sigaction sa;
+	XColor xcol;
+	Colormap cmap;
 
 	/* do not transform children into zombies when they terminate */
 	sigemptyset(&sa.sa_mask);
@@ -1564,6 +1566,14 @@ setup(void)
 	lrpad = drw->fonts->h;
 	bh = drw->fonts->h + 2;
 	updategeom();
+
+	/* setup background color */
+	cmap = DefaultColormap(dpy, screen);
+	if (XAllocNamedColor(dpy, cmap, bg_norm, &xcol, &xcol) != 0) {
+		XSetWindowBackground(dpy, root, xcol.pixel);
+		XClearWindow(dpy, root);
+	}
+
 	/* init atoms */
 	utf8string = XInternAtom(dpy, "UTF8_STRING", False);
 	wmatom[WMProtocols] = XInternAtom(dpy, "WM_PROTOCOLS", False);
