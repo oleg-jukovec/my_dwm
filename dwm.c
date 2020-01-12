@@ -163,6 +163,7 @@ static Monitor *dirtomon(int dir);
 static void drawbar(Monitor *m);
 static void drawbars(void);
 static void enternotify(XEvent *e);
+static void execute(const char **cmd);
 static void expose(XEvent *e);
 static void focus(Client *c);
 static void focusin(XEvent *e);
@@ -1382,6 +1383,11 @@ void
 run(void)
 {
 	XEvent ev;
+	int i;
+	/* autostart */
+	for (i = 0; i < LENGTH(autostart); i++)
+		execute(autostart[i]);
+
 	/* main event loop */
 	XSync(dpy, False);
 	while (running && !XNextEvent(dpy, &ev))
@@ -1654,12 +1660,10 @@ showhide(Client *c)
 }
 
 void
-spawn(const Arg *arg)
+execute(const char **cmd)
 {
 	struct sigaction sa;
 
-	if (arg->v == dmenucmd)
-		dmenumon[0] = '0' + selmon->num;
 	if (fork() == 0) {
 		if (dpy)
 			close(ConnectionNumber(dpy));
@@ -1670,9 +1674,17 @@ spawn(const Arg *arg)
 		sa.sa_handler = SIG_DFL;
 		sigaction(SIGCHLD, &sa, NULL);
 
-		execvp(((char **)arg->v)[0], (char **)arg->v);
-		die("dwm: execvp '%s' failed:", ((char **)arg->v)[0]);
+		execvp(cmd[0], (char**) cmd);
+		die("dwm: execvp '%s' failed:", cmd[0]);
 	}
+}
+
+void
+spawn(const Arg *arg)
+{
+	if (arg->v == dmenucmd)
+		dmenumon[0] = '0' + selmon->num;
+	execute((const char **) arg->v);
 }
 
 void
