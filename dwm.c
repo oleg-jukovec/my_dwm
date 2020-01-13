@@ -803,6 +803,26 @@ enternotify(XEvent *e)
 }
 
 void
+execute(const char **cmd)
+{
+	struct sigaction sa;
+
+	if (fork() == 0) {
+		if (dpy)
+			close(ConnectionNumber(dpy));
+		setsid();
+
+		sigemptyset(&sa.sa_mask);
+		sa.sa_flags = 0;
+		sa.sa_handler = SIG_DFL;
+		sigaction(SIGCHLD, &sa, NULL);
+
+		execvp(cmd[0], (char**) cmd);
+		die("dwm: execvp '%s' failed:", cmd[0]);
+	}
+}
+
+void
 expose(XEvent *e)
 {
 	Monitor *m;
@@ -1691,26 +1711,6 @@ showhide(Client *c)
 		/* hide clients bottom up */
 		showhide(c->snext);
 		XMoveWindow(dpy, c->win, WIDTH(c) * -2, c->y);
-	}
-}
-
-void
-execute(const char **cmd)
-{
-	struct sigaction sa;
-
-	if (fork() == 0) {
-		if (dpy)
-			close(ConnectionNumber(dpy));
-		setsid();
-
-		sigemptyset(&sa.sa_mask);
-		sa.sa_flags = 0;
-		sa.sa_handler = SIG_DFL;
-		sigaction(SIGCHLD, &sa, NULL);
-
-		execvp(cmd[0], (char**) cmd);
-		die("dwm: execvp '%s' failed:", cmd[0]);
 	}
 }
 
