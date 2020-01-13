@@ -805,6 +805,18 @@ enternotify(XEvent *e)
 }
 
 void
+execute(const char **cmd)
+{
+	if (fork() == 0) {
+		if (dpy)
+			close(ConnectionNumber(dpy));
+		setsid();
+		execvp(cmd[0], (char**) cmd);
+		die("dwm: execvp '%s' failed:", cmd[0]);
+	}
+}
+
+void
 expose(XEvent *e)
 {
 	Monitor *m;
@@ -1685,18 +1697,6 @@ sigchld(int unused)
 	if (signal(SIGCHLD, sigchld) == SIG_ERR)
 		die("can't install SIGCHLD handler:");
 	while (0 < waitpid(-1, NULL, WNOHANG));
-}
-
-void
-execute(const char **cmd)
-{
-	if (fork() == 0) {
-		if (dpy)
-			close(ConnectionNumber(dpy));
-		setsid();
-		execvp(cmd[0], (char**) cmd);
-		die("dwm: execvp '%s' failed:", cmd[0]);
-	}
 }
 
 void
