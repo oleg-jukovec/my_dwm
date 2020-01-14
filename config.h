@@ -1,25 +1,5 @@
 /* See LICENSE file for copyright and license details. */
 
-/* appearance */
-static const unsigned int borderpx  = 1;        /* border pixel of windows */
-static const unsigned int snap      = 32;       /* snap pixel */
-static const int showbar            = 1;        /* 0 means no bar */
-static const int topbar             = 1;        /* 0 means bottom bar */
-static const char *fonts[]          = { "Droid Sans Mono:size=12" };
-static const char dmenufont[]       = "Droid Sans Mono:size=12";
-static const char fg_norm[]         = "#f8f8f2";
-static const char bg_norm[]         = "#282a36";
-static const char border_norm[]     = "#44475a";
-static const char fg_sel[]          = "#f8f8f2";
-static const char bg_sel[]          = "#6272a4";
-static const char border_sel[]      = "#ff79c6";
-
-static const char *colors[][3]      = {
-	/*               fg         bg         border   */
-	[SchemeNorm] = { fg_norm, bg_norm, border_norm },
-	[SchemeSel]  = { fg_sel, bg_sel,  border_sel  },
-};
-
 /* tagging */
 static const char *tags[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9" };
 
@@ -37,6 +17,7 @@ static const Rule rules[] = {
 static const float mfact     = 0.55; /* factor of master area size [0.05..0.95] */
 static const int nmaster     = 1;    /* number of clients in master area */
 static const int resizehints = 1;    /* 1 means respect size hints in tiled resizals */
+static const int lockfullscreen = 1; /* 1 will force focus on the fullscreen window */
 
 static const Layout layouts[] = {
 	/* symbol     arrange function */
@@ -60,7 +41,7 @@ static const Layout layouts[] = {
 
 /* commands */
 static char dmenumon[2] = "0"; /* component of dmenucmd, manipulated in spawn() */
-static const char *dmenucmd[] = { "dmenu_run", "-m", dmenumon, "-fn", dmenufont, "-nb", bg_norm, "-nf", fg_norm, "-sb", bg_sel, "-sf", fg_sel, NULL };
+static const char *dmenucmd[] = { "dmenu_run", "-m", dmenumon, NULL };
 static const char *termcmd[]  = { "uxterm", NULL };
 static const char *firefoxcmd[] = { "firefox", NULL};
 static const char *dwm_clockcmd[] = { "dwm_clock.sh", NULL};
@@ -70,7 +51,7 @@ static const char **autostart[] = {
 	firefoxcmd,
 };
 
-static Key keys[] = {
+static const Key keys[] = {
 	/* modifier                     key        function        argument */
 	{ MODKEY,                       XK_p,      spawn,          {.v = dmenucmd } },
 	{ WINKEY,                       XK_t,      spawn,          {.v = termcmd } },
@@ -109,7 +90,7 @@ static Key keys[] = {
 
 /* button definitions */
 /* click can be ClkTagBar, ClkLtSymbol, ClkStatusText, ClkWinTitle, ClkClientWin, or ClkRootWin */
-static Button buttons[] = {
+static const Button buttons[] = {
 	/* click                event mask      button          function        argument */
 	{ ClkLtSymbol,          0,              Button1,        setlayout,      {0} },
 	{ ClkLtSymbol,          0,              Button3,        setlayout,      {.v = &layouts[2]} },
