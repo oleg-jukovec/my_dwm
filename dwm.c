@@ -27,6 +27,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <threads.h>
+#include <time.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <sys/types.h>
@@ -97,6 +99,10 @@ struct Client {
 	Monitor *mon;
 	Window win;
 };
+typedef struct {
+	cnd_t *cnd;
+	mtx_t *mtx;
+} clockthreadfunc_arg;
 
 typedef struct {
 	unsigned int mod;
@@ -538,28 +544,22 @@ clientmessage(XEvent *e)
 	}
 }
 
-/*
- * TODO: a better synchranization, but at now too many global variables
- * and it have no sence
- */
 void*
 clockthreadfunc(void *arg)
 {
-	Display *display = (Display*) arg;
-	time_t now;
+	clockthreadfunc_arg *func_arg = (clockthreadfunc_arg*) arg;
+	struct timespec ts;
 
-	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
-	do {
-		/* sleep for until next minute starts */
-		now = time(NULL);
-		sleep(60 - (now % 60));
-		if (!running)
-			break;
-
-		XLockDisplay(display);
+	mtx_lock(func_arg->mtx);
+	while (running) {
+		timespec_get(&ts, TIME_UTC);
+		ts.tv_sec += 60 - ts.tv_sec % 60;
+		if (cnd_timedwait(func_arg->cnd, func_arg->mtx, &ts) == thrd_error) {
+			die("Unable to wait in clockthread.");
+		}
 		updatestatus();
-		XUnlockDisplay(display);
-	} while (running);
+	}
+	mtx_unlock(func_arg->mtx);
 	return NULL;
 }
 
@@ -2222,12 +2222,21 @@ zoom(const Arg *arg)
 int
 main(int argc, char *argv[])
 {
+	cnd_t *cnd_clock = malloc(sizeof(cnd_t));
+	mtx_t *mtx_clock = malloc(sizeof(mtx_t));
+	clockthreadfunc_arg *clockthread_arg = malloc(sizeof(clockthreadfunc_arg));
 	pthread_t clockthread;
 
 	if (argc == 2 && !strcmp("-v", argv[1]))
 		die("dwm-"VERSION);
 	else if (argc != 1)
 		die("usage: dwm [-v]");
+	else if (cnd_clock == NULL || mtx_clock == NULL || clockthread_arg == NULL)
+		die("failed to allocate memory");
+	else if (cnd_init(cnd_clock) != thrd_success
+			 || mtx_init(mtx_clock, mtx_plain) != thrd_success) {
+		die("failed to initialize data");
+	}
 	if (!setlocale(LC_CTYPE, "") || !XSupportsLocale())
 		fputs("warning: no locale support\n", stderr);
 	if(XInitThreads() == 0)
@@ -2241,14 +2250,24 @@ main(int argc, char *argv[])
 		die("pledge");
 #endif /* __OpenBSD__ */
 	scan();
-	pthread_create(&clockthread, NULL, clockthreadfunc, (void*) dpy);
+
+	clockthread_arg->cnd = cnd_clock;
+	clockthread_arg->mtx = mtx_clock;
+	clockthread_arg->dpy = dpy;
+	pthread_create(&clockthread, NULL, clockthreadfunc, (void*)clockthread_arg);
 
 	run();
 
-	XLockDisplay(dpy);
-	pthread_cancel(clockthread);
-	XLockDisplay(dpy);
+	mtx_lock(mtx_clock);
+	cnd_broadcast(cnd_clock);
+	mtx_unlock(mtx_clock);
+
 	pthread_join(clockthread, NULL);
+	cnd_destroy(cnd_clock);
+	mtx_destroy(mtx_clock);
+	free(cnd_clock);
+	free(mtx_clock);
+	free(clockthread_arg);
 
 	cleanup();
 	XCloseDisplay(dpy);
