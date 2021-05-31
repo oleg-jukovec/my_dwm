@@ -100,8 +100,8 @@ struct Client {
 	Window win;
 };
 typedef struct {
-	cnd_t *cnd;
-	mtx_t *mtx;
+	cnd_t cnd;
+	mtx_t mtx;
 } clockthreadfunc_arg;
 
 typedef struct {
@@ -158,7 +158,7 @@ static void checkotherwm(void);
 static void cleanup(void);
 static void cleanupmon(Monitor *mon);
 static void clientmessage(XEvent *e);
-static void* clockthreadfunc(void *arg);
+static int clockthreadfunc(void *arg);
 static void configure(Client *c);
 static void configurenotify(XEvent *e);
 static void configurerequest(XEvent *e);
@@ -544,23 +544,23 @@ clientmessage(XEvent *e)
 	}
 }
 
-void*
+int
 clockthreadfunc(void *arg)
 {
 	clockthreadfunc_arg *func_arg = (clockthreadfunc_arg*) arg;
 	struct timespec ts;
 
-	mtx_lock(func_arg->mtx);
+	mtx_lock(&func_arg->mtx);
 	while (running) {
 		timespec_get(&ts, TIME_UTC);
 		ts.tv_sec += 60 - ts.tv_sec % 60;
-		if (cnd_timedwait(func_arg->cnd, func_arg->mtx, &ts) == thrd_error) {
+		if (cnd_timedwait(&func_arg->cnd, &func_arg->mtx, &ts) == thrd_error) {
 			die("Unable to wait in clockthread.");
 		}
 		updatestatus();
 	}
-	mtx_unlock(func_arg->mtx);
-	return NULL;
+	mtx_unlock(&func_arg->mtx);
+	return 0;
 }
 
 void
@@ -2222,19 +2222,17 @@ zoom(const Arg *arg)
 int
 main(int argc, char *argv[])
 {
-	cnd_t *cnd_clock = malloc(sizeof(cnd_t));
-	mtx_t *mtx_clock = malloc(sizeof(mtx_t));
 	clockthreadfunc_arg *clockthread_arg = malloc(sizeof(clockthreadfunc_arg));
-	pthread_t clockthread;
+	thrd_t clockthread;
 
 	if (argc == 2 && !strcmp("-v", argv[1]))
 		die("dwm-"VERSION);
 	else if (argc != 1)
 		die("usage: dwm [-v]");
-	else if (cnd_clock == NULL || mtx_clock == NULL || clockthread_arg == NULL)
+	else if (clockthread_arg == NULL)
 		die("failed to allocate memory");
-	else if (cnd_init(cnd_clock) != thrd_success
-			 || mtx_init(mtx_clock, mtx_plain) != thrd_success) {
+	else if (cnd_init(&clockthread_arg->cnd) != thrd_success
+			 || mtx_init(&clockthread_arg->mtx, mtx_plain) != thrd_success) {
 		die("failed to initialize data");
 	}
 	if (!setlocale(LC_CTYPE, "") || !XSupportsLocale())
@@ -2251,22 +2249,23 @@ main(int argc, char *argv[])
 #endif /* __OpenBSD__ */
 	scan();
 
-	clockthread_arg->cnd = cnd_clock;
-	clockthread_arg->mtx = mtx_clock;
-	clockthread_arg->dpy = dpy;
-	pthread_create(&clockthread, NULL, clockthreadfunc, (void*)clockthread_arg);
+	if (thrd_create(&clockthread,
+					clockthreadfunc,
+					(void*)clockthread_arg) != thrd_success) {
+		die("unable to create a clock thread");
+	}
 
 	run();
 
-	mtx_lock(mtx_clock);
-	cnd_broadcast(cnd_clock);
-	mtx_unlock(mtx_clock);
+	mtx_lock(&clockthread_arg->mtx);
+	cnd_broadcast(&clockthread_arg->cnd);
+	mtx_unlock(&clockthread_arg->mtx);
 
-	pthread_join(clockthread, NULL);
-	cnd_destroy(cnd_clock);
-	mtx_destroy(mtx_clock);
-	free(cnd_clock);
-	free(mtx_clock);
+	if (thrd_join(clockthread, NULL) != thrd_success) {
+		die("unable to join to a clock thread");
+	}
+	cnd_destroy(&clockthread_arg->cnd);
+	mtx_destroy(&clockthread_arg->mtx);
 	free(clockthread_arg);
 
 	cleanup();
