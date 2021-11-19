@@ -23,7 +23,6 @@
 /* macros */
 #define INTERSECT(x,y,w,h,r)  (MAX(0, MIN((x)+(w),(r).x_org+(r).width)  - MAX((x),(r).x_org)) \
                              * MAX(0, MIN((y)+(h),(r).y_org+(r).height) - MAX((y),(r).y_org)))
-#define LENGTH(X)             (sizeof X / sizeof X[0])
 #define TEXTW(X)              (drw_fontset_getwidth(drw, (X)) + lrpad)
 
 /* enums */
@@ -555,7 +554,7 @@ readstdin(void)
 		if ((p = strchr(execlist[i], '\n')))
 			*p = '\0';
 		if (!(items[i].text = execlist[i]))
-			die("cannot strdup %u bytes:", strlen(execlist[i]) + 1);
+			die("cannot strdup %u bytes:", (execlist[i] ? strlen(execlist[i]) : 0) + 1);
 		items[i].out = 0;
 		drw_font_getexts(drw->fonts, execlist[i], strlen(execlist[i]), &tmpmax, NULL);
 		if (tmpmax > inputw) {
