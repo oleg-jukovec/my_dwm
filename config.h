@@ -37,9 +37,6 @@ static const Layout layout_float = {
 	{ WINKEY|ShiftMask,             KEY,      tag,            {.ui = 1 << TAG} }, \
 	{ WINKEY|ControlMask|ShiftMask, KEY,      toggletag,      {.ui = 1 << TAG} },
 
-/* helper for spawning shell commands in the pre dwm-5.0 fashion */
-#define SHCMD(cmd) { .v = (const char*[]){ "/bin/sh", "-c", cmd, NULL } }
-
 /* commands */
 static const char *termcmd[]  = { "urxvt", NULL };
 static const char *firefoxcmd[] = { "firefox", NULL};
