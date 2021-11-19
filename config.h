@@ -23,7 +23,10 @@ static const Layout layouts[] = {
 	/* symbol     arrange function */
 	{ "[M]",      monocle }, /* first entry is default */
 	{ "[]=",      tile },
-	{ "><>",      NULL },    /* no layout function means floating behavior */
+};
+
+static const Layout layout_float = {
+	"><>", NULL    /* no layout function means floating behavior */
 };
 
 /* key definitions */
@@ -32,7 +35,6 @@ static const Layout layouts[] = {
 
 #define TAGKEYS(KEY,TAG) \
 	{ WINKEY,                       KEY,      view,           {.ui = 1 << TAG} }, \
-	{ WINKEY|ControlMask,           KEY,      toggleview,     {.ui = 1 << TAG} }, \
 	{ WINKEY|ShiftMask,             KEY,      tag,            {.ui = 1 << TAG} }, \
 	{ WINKEY|ControlMask|ShiftMask, KEY,      toggletag,      {.ui = 1 << TAG} },
 
@@ -90,15 +92,14 @@ static const Key keys[] = {
 /* click can be ClkTagBar, ClkLtSymbol, ClkStatusText, ClkWinTitle, ClkClientWin, or ClkRootWin */
 static const Button buttons[] = {
 	/* click                event mask      button          function        argument */
-	{ ClkLtSymbol,          0,              Button1,        setlayout,      {0} },
-	{ ClkLtSymbol,          0,              Button3,        setlayout,      {.v = &layouts[2]} },
+	{ ClkLtSymbol,          0,              Button1,        nextlayout,     {0} },
+	{ ClkLtSymbol,          0,              Button3,        setlayout,      {.v = &layout_float} },
 	{ ClkWinTitle,          0,              Button2,        zoom,           {0} },
 	{ ClkStatusText,        0,              Button2,        spawn,          {.v = termcmd } },
 	{ ClkClientWin,         MODKEY,         Button1,        movemouse,      {0} },
 	{ ClkClientWin,         MODKEY,         Button2,        togglefloating, {0} },
 	{ ClkClientWin,         MODKEY,         Button3,        resizemouse,    {0} },
 	{ ClkTagBar,            0,              Button1,        view,           {0} },
-	{ ClkTagBar,            0,              Button3,        toggleview,     {0} },
 	{ ClkTagBar,            MODKEY,         Button1,        tag,            {0} },
 	{ ClkTagBar,            MODKEY,         Button3,        toggletag,      {0} },
 };
