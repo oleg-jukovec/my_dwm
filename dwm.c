@@ -116,6 +116,7 @@ typedef struct {
 
 typedef struct {
 	const char *symbol;
+	const unsigned int bw;
 	void (*arrange)(Monitor *);
 } Layout;
 
@@ -492,7 +493,7 @@ void
 cleanup(void)
 {
 	Arg a = {.ui = ~0};
-	Layout foo = { "", NULL };
+	Layout foo = { "", borderpx, NULL };
 	Monitor *m;
 	size_t i;
 
@@ -1144,6 +1145,7 @@ manage(Window w, XWindowAttributes *wa)
 		c->mon = selmon;
 		applyrules(c);
 	}
+	const int tag = MONTAG(c->mon);
 
 	if (c->x + WIDTH(c) > c->mon->wx + c->mon->ww)
 		c->x = c->mon->wx + c->mon->ww - WIDTH(c);
@@ -1151,7 +1153,7 @@ manage(Window w, XWindowAttributes *wa)
 		c->y = c->mon->wy + c->mon->wh - HEIGHT(c);
 	c->x = MAX(c->x, c->mon->wx);
 	c->y = MAX(c->y, c->mon->wy);
-	c->bw = borderpx;
+	c->bw = c->mon->lts[tag]->bw;
 
 	wc.border_width = c->bw;
 	XConfigureWindow(dpy, w, CWBorderWidth, &wc);
@@ -1663,6 +1665,14 @@ setlayout(const Arg *arg)
 		selmon->lts[tag] = (Layout *)arg->v;
 	}
 	strncpy(selmon->ltsymbol, selmon->lts[tag]->symbol, sizeof(selmon->ltsymbol) - 1);
+	for (Client *c = selmon->clients; c; c = c->next) {
+		if (ISVISIBLE(c)) {
+			const int oldbw = c->bw;
+			c->bw = selmon->lts[tag]->bw;
+			const int delta = (oldbw - (int)c->bw) * 2;
+			resize(c, c->x, c->y, c->w + delta, c->h + delta, 0);
+		}
+	}
 	if (selmon->sel)
 		arrange(selmon);
 	else
