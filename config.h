@@ -19,13 +19,13 @@ static const int nmaster     = 1;    /* number of clients in master area */
 static const int resizehints = 0;    /* 1 means respect size hints in tiled resizals */
 
 static const Layout layouts[] = {
-	/* symbol     arrange function */
-	{ "[M]",      monocle }, /* first entry is default */
-	{ "[]=",      tile },
+	/* symbol     border size     arrange function */
+	{ "[M]",      0,              monocle }, /* first entry is default */
+	{ "[]=",      borderpx,       tile },
 };
 
 static const Layout layout_float = {
-	"><>", NULL    /* no layout function means floating behavior */
+	"><>",        borderpx,       NULL    /* no layout function means floating behavior */
 };
 
 /* key definitions */

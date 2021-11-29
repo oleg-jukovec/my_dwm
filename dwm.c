@@ -123,6 +123,7 @@ typedef struct {
 
 typedef struct {
 	const char *symbol;
+	const unsigned int bw;
 	void (*arrange)(Monitor *);
 } Layout;
 
@@ -540,7 +541,7 @@ cleanup(void)
 {
 	ChildNode *node;
 	Arg a = {.ui = ~0};
-	Layout foo = { "", NULL };
+	Layout foo = { "", borderpx, NULL };
 	Monitor *m;
 	size_t i;
 	int sleeped = 0;
@@ -1209,6 +1210,7 @@ manage(Window w, XWindowAttributes *wa)
 		c->mon = selmon;
 		applyrules(c);
 	}
+	const int tag = MONTAG(c->mon);
 
 	if (c->x + WIDTH(c) > c->mon->mx + c->mon->mw)
 		c->x = c->mon->mx + c->mon->mw - WIDTH(c);
@@ -1218,7 +1220,7 @@ manage(Window w, XWindowAttributes *wa)
 	/* only fix client y-offset, if the client center might cover the bar */
 	c->y = MAX(c->y, ((c->mon->by == c->mon->my) && (c->x + (c->w / 2) >= c->mon->wx)
 		&& (c->x + (c->w / 2) < c->mon->wx + c->mon->ww)) ? bh : c->mon->my);
-	c->bw = borderpx;
+	c->bw = c->mon->lts[tag]->bw;
 
 	wc.border_width = c->bw;
 	XConfigureWindow(dpy, w, CWBorderWidth, &wc);
@@ -1733,6 +1735,14 @@ setlayout(const Arg *arg)
 		selmon->lts[tag] = (Layout *)arg->v;
 	}
 	strncpy(selmon->ltsymbol, selmon->lts[tag]->symbol, sizeof(selmon->ltsymbol) - 1);
+	for (Client *c = selmon->clients; c; c = c->next) {
+		if (ISVISIBLE(c)) {
+			const int oldbw = c->bw;
+			c->bw = selmon->lts[tag]->bw;
+			const int delta = (oldbw - (int)c->bw) * 2;
+			resize(c, c->x, c->y, c->w + delta, c->h + delta, 0);
+		}
+	}
 	if (selmon->sel)
 		arrange(selmon);
 	else
