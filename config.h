@@ -11,6 +11,7 @@ static const Rule rules[] = {
 	/* class      instance    title       tags mask     isfloating   monitor */
 	{ "Gimp",     NULL,       NULL,       0,            1,           -1 },
 	{ "Firefox",  NULL,       NULL,       1 << 0,       0,           -1 },
+	{ "Telegram", NULL,       NULL,       1 << 8,       0,           -1 },
 };
 
 /* layout(s) */
@@ -41,10 +42,12 @@ static const Layout layout_float = {
 /* commands */
 static const char *termcmd[]  = { "urxvt", NULL };
 static const char *firefoxcmd[] = { "firefox", NULL};
+static const char *telegramcmd[] = { "telegram-desktop", NULL};
 static const char *cmdprintscreen[]  = { "scrot", "/home/ozi/images/screenshots/%Y-%m-%d-%s.jpg", NULL };
 
 static const char **autostart[] = {
 	firefoxcmd,
+	telegramcmd,
 };
 
 static const Key keys[] = {
