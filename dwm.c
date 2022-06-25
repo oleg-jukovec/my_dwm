@@ -594,8 +594,8 @@ cleanup(void)
 	while (children) {
 		kill(children->pid, SIGKILL);
 		node = children;
-		free(node);
 		children = children->next;
+		free(node);
 	}
 }
 
