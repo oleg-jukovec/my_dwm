@@ -564,10 +564,16 @@ clockthreadfunc(void *arg)
 	while (running) {
 		timespec_get(&ts, TIME_UTC);
 		ts.tv_sec += 60 - ts.tv_sec % 60;
-		if (cnd_timedwait(&func_arg->cnd, &func_arg->mtx, &ts) == thrd_error) {
-			die("Unable to wait in clockthread.");
-		}
+		if (cnd_timedwait(&func_arg->cnd, &func_arg->mtx, &ts) == thrd_error)
+			break;
+		mtx_unlock(&func_arg->mtx);
+
+		/* the main thread holds the same lock while running handlers */
+		XLockDisplay(dpy);
 		updatestatus();
+		XUnlockDisplay(dpy);
+
+		mtx_lock(&func_arg->mtx);
 	}
 	mtx_unlock(&func_arg->mtx);
 	return 0;
