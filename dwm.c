@@ -2046,21 +2046,37 @@ updatekbdlayout()
 {
 	XkbRF_VarDefsRec vd;
 	XkbStateRec state;
+	char *tok, *end;
+	size_t len;
 
-	layout[0] ='\0';
+	layout[0] = '\0';
 
-	XkbGetState(dpy, XkbUseCoreKbd, &state);
-	XkbRF_GetNamesProp(dpy, NULL, &vd);
+	if (XkbGetState(dpy, XkbUseCoreKbd, &state) != Success)
+		return;
+	memset(&vd, 0, sizeof(vd));
+	if (!XkbRF_GetNamesProp(dpy, NULL, &vd) || !vd.layout) {
+		XkbRF_FreeVarDefs(&vd, False);
+		return;
+	}
 
-	char *tok = strtok(vd.layout, ",");
+	tok = vd.layout;
 	for (int i = 0; i < state.group; i++) {
-		tok = strtok(NULL, ",");
+		tok = strchr(tok, ',');
 		if (tok == NULL) {
-			layout[0] = '\0';
+			XkbRF_FreeVarDefs(&vd, False);
 			return;
 		}
+		tok++;
 	}
-	sprintf(layout, "[%s]", tok);
+	end = strchr(tok, ',');
+	len = end ? (size_t)(end - tok) : strlen(tok);
+	if (len > sizeof(layout) - 3)
+		len = sizeof(layout) - 3;
+	layout[0] = '[';
+	memcpy(layout + 1, tok, len);
+	layout[1 + len] = ']';
+	layout[2 + len] = '\0';
+	XkbRF_FreeVarDefs(&vd, False);
 }
 
 void
