@@ -210,6 +210,7 @@ static void unmanage(Client *c, int destroyed);
 static void unmapnotify(XEvent *e);
 static void updatebarpos(Monitor *m);
 static void updatebars(void);
+static void updateclientborders(Monitor *m);
 static void updateclientlist(void);
 static int updategeom(void);
 static void updatekbdlayout(void);
@@ -418,6 +419,7 @@ arrangemon(Monitor *m)
 {
 	const int tag = MONTAG(m);
 	strncpy(m->ltsymbol, m->lts[tag]->symbol, sizeof(m->ltsymbol) - 1);
+	updateclientborders(m);
 	if (m->lts[tag]->arrange)
 		m->lts[tag]->arrange(m);
 }
@@ -1673,14 +1675,7 @@ setlayout(const Arg *arg)
 		selmon->lts[tag] = (Layout *)arg->v;
 	}
 	strncpy(selmon->ltsymbol, selmon->lts[tag]->symbol, sizeof(selmon->ltsymbol) - 1);
-	for (Client *c = selmon->clients; c; c = c->next) {
-		if (ISVISIBLE(c)) {
-			const int oldbw = c->bw;
-			c->bw = selmon->lts[tag]->bw;
-			const int delta = (oldbw - (int)c->bw) * 2;
-			resize(c, c->x, c->y, c->w + delta, c->h + delta, 0);
-		}
-	}
+	updateclientborders(selmon);
 	if (selmon->sel)
 		arrange(selmon);
 	else
@@ -2004,6 +1999,22 @@ updatebarpos(Monitor *m)
 		m->wy = m->topbar ? m->wy + bh : m->wy;
 	} else
 		m->by = -bh;
+}
+
+void
+updateclientborders(Monitor *m)
+{
+	Client *c;
+	const int tag = MONTAG(m);
+	const int bw = m->lts[tag]->bw;
+
+	for (c = m->clients; c; c = c->next) {
+		if (!ISVISIBLE(c) || c->isfullscreen || c->bw == bw)
+			continue;
+		const int delta = (c->bw - bw) * 2;
+		c->bw = bw;
+		resize(c, c->x, c->y, c->w + delta, c->h + delta, 0);
+	}
 }
 
 void
