@@ -756,7 +756,7 @@ void
 dmenurun(const Arg *arg)
 {
 	int argvn = 0;
-	char *str, **argv = NULL;
+	char *str, **argv = NULL, **tmp;
 	char *result;
 
 	result = rundmenu(dpy, screen, root);
@@ -775,10 +775,12 @@ dmenurun(const Arg *arg)
 	for (str = strtok(result, " ");
 		 str;
 		 argv[argvn - 1] = str, str = strtok(NULL, " ")) {
-		argv = realloc(argv, (++argvn + 1) * sizeof(char*));
-		if (argv == NULL) {
-			die("cannot realloc %u bytes:", (argvn + 1) * sizeof(char*));
+		tmp = realloc(argv, (++argvn + 1) * sizeof(char*));
+		if (tmp == NULL) {
+			free(argv);
+			die("cannot realloc %zu bytes:", (argvn + 1) * sizeof(char*));
 		}
+		argv = tmp;
 	}
 	if (argvn == 0)
 		return;
