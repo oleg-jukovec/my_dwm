@@ -139,7 +139,8 @@ drawmenu(void)
 	drw_map(drw, win, 0, 0, mw, mh);
 }
 
-static void
+/* returns 0 on success and -1 if the focus could not be grabbed */
+static int
 grabfocus(void)
 {
 	struct timespec ts = { .tv_sec = 0, .tv_nsec = 10000000  };
@@ -149,14 +150,15 @@ grabfocus(void)
 	for (i = 0; i < 100; ++i) {
 		XGetInputFocus(dpy, &focuswin, &revertwin);
 		if (focuswin == win)
-			return;
+			return 0;
 		XSetInputFocus(dpy, win, RevertToParent, CurrentTime);
 		nanosleep(&ts, NULL);
 	}
-	die("cannot grab focus");
+	return -1;
 }
 
-static void
+/* returns 0 on success and -1 if the keyboard could not be grabbed */
+static int
 grabkeyboard(void)
 {
 	struct timespec ts = { .tv_sec = 0, .tv_nsec = 1000000  };
@@ -166,10 +168,10 @@ grabkeyboard(void)
 	for (i = 0; i < 1000; i++) {
 		if (XGrabKeyboard(dpy, DefaultRootWindow(dpy), True, GrabModeAsync,
 		                  GrabModeAsync, CurrentTime) == GrabSuccess)
-			return;
+			return 0;
 		nanosleep(&ts, NULL);
 	}
-	die("cannot grab keyboard");
+	return -1;
 }
 
 static void
@@ -587,8 +589,8 @@ run(void)
 			break;
 		case FocusIn:
 			/* regrab focus from parent window */
-			if (ev.xfocus.window != win)
-				grabfocus();
+			if (ev.xfocus.window != win && grabfocus() < 0)
+				return "";
 			break;
 		case KeyPress:
 			if((result = keypress(&ev.xkey)))
@@ -679,7 +681,8 @@ rundmenu(Display *display, int sc, Window r)
 	prev = curr = next = sel = NULL;
 	text[0] = '\0';
 	cursor = 0;
-	grabkeyboard();
+	if (grabkeyboard() < 0)
+		return NULL;
 	setup();
 	result = run();
 
