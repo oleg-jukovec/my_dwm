@@ -45,7 +45,9 @@ static const Layout layout_float = {
 static const char *termcmd[]  = { "urxvt", NULL };
 static const char *firefoxcmd[] = { "firefox", NULL};
 static const char *telegramcmd[] = { "telegram", NULL};
-static const char *cmdprintscreen[]  = { "scrot", "/home/ozi/images/screenshots/%Y-%m-%d-%s.jpg", NULL };
+static const char *cmdprintscreen[]  = { "scrot", "-oz",
+	"/home/ozi/images/screenshots/%Y-%m-%d-%s.png",
+	"-e", "xclip -selection clipboard -t image/png -i \"$f\"", NULL };
 
 static const char **autostart[] = {
 	firefoxcmd,
