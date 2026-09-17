@@ -48,6 +48,7 @@ static Atom clip, utf8;
 static Display *dpy;
 static Window root, win;
 static XIC xic;
+static XIM xim;
 
 static Drw *drw = NULL;
 static Clr *scheme[SchemeLast];
@@ -483,18 +484,21 @@ execcmp(const void *l, const void *r) {
 	return strcmp(ll,rr);
 }
 
-static void
+static int
 addexec(char *execname) {
+	char **tmp, *dup;
+
 	if (execlistlen == execlistsz) {
-		if (execlistsz == 0) {
-			execlistsz = EXECLISTBASE;
-			execlist = (char**) malloc(sizeof(char*) * execlistsz);
-		} else {
-			execlistsz += EXECLISTBASE;
-			execlist = (char**) realloc(execlist, sizeof(char*) * execlistsz);
-		}
+		tmp = realloc(execlist, sizeof(char*) * (execlistsz + EXECLISTBASE));
+		if (tmp == NULL)
+			return -1;
+		execlist = tmp;
+		execlistsz += EXECLISTBASE;
 	}
-	execlist[execlistlen++] = strdup(execname);
+	if ((dup = strdup(execname)) == NULL)
+		return -1;
+	execlist[execlistlen++] = dup;
+	return 0;
 }
 
 static void
@@ -509,9 +513,9 @@ addallexec(char *basepath) {
 			if (snprintf(path, PATH_MAX, "%s/%s", basepath, d->d_name) > 0) {
 				if (!stat(path, &st)
 					&& S_ISREG(st.st_mode)
-					&& access(path, X_OK) == 0) {
-					addexec(d->d_name);
-				}
+					&& access(path, X_OK) == 0
+					&& addexec(d->d_name) < 0)
+					break;
 			}
 		}
 		closedir(dir);
@@ -614,7 +618,6 @@ setup(void)
 {
 	int i;
 	XSetWindowAttributes swa;
-	XIM xim;
 	XClassHint ch = {"dmenu", "dmenu"};
 
 	/* init appearance */
@@ -652,16 +655,16 @@ char*
 rundmenu(Display *display, int sc, Window r)
 {
 	char *result;
+	XWindowAttributes wa;
 
 	dpy = display;
 	screen = sc;
 	root = r;
 
+	if (!XGetWindowAttributes(dpy, root, &wa))
+		return NULL;
+
 	if (!drw) {
-		XWindowAttributes wa;
-		if (!XGetWindowAttributes(dpy, root, &wa))
-			die("could not get embedding window attributes: 0x%lx",
-				root);
 		drw = drw_create(dpy, screen, root, wa.width, wa.height);
 		if (!drw_fontset_create(drw, fonts, LENGTH(fonts)))
 			die("no fonts could be loaded.");
@@ -669,9 +672,10 @@ rundmenu(Display *display, int sc, Window r)
 		/* calculate menu geometry */
 		lrpad = drw->fonts->h;
 		mh = drw->fonts->h + 2;
-		mw = wa.width;
-		drw_resize(drw, mw, mh);
 	}
+	/* screen width may have changed since the previous run */
+	mw = wa.width;
+	drw_resize(drw, mw, mh);
 
 	if (!items) {
 		readstdin();
@@ -686,6 +690,14 @@ rundmenu(Display *display, int sc, Window r)
 	setup();
 	result = run();
 
+	if (xic) {
+		XDestroyIC(xic);
+		xic = NULL;
+	}
+	if (xim) {
+		XCloseIM(xim);
+		xim = NULL;
+	}
 	XUngrabPointer(display, CurrentTime);
 	XUngrabKeyboard(display, CurrentTime);
 	XDestroyWindow(dpy, win);
