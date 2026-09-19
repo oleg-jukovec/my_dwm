@@ -25,7 +25,7 @@ static const Layout layouts[] = {
 	/* symbol     border size     arrange function */
 	{ "[M]",      0,              monocle }, /* first entry is default */
 	{ "[]=",      borderpx,       tile },
-	{ "[C]",      borderpx,       centered },
+	{ "[C]",      0,              centered },
 };
 
 static const Layout layout_float = {
