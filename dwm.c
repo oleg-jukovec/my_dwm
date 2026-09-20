@@ -22,16 +22,14 @@
  */
 #include <errno.h>
 #include <locale.h>
+#include <poll.h>
 #include <signal.h>
 #include <stdarg.h>
-#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <threads.h>
 #include <time.h>
 #include <unistd.h>
-#include <pthread.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <X11/cursorfont.h>
@@ -103,11 +101,6 @@ struct Client {
 	Window win;
 };
 typedef struct {
-	cnd_t cnd;
-	mtx_t mtx;
-} clockthreadfunc_arg;
-
-typedef struct {
 	unsigned int mod;
 	KeySym keysym;
 	void (*func)(const Arg *);
@@ -142,7 +135,6 @@ static void checkotherwm(void);
 static void cleanup(void);
 static void cleanupmon(Monitor *mon);
 static void clientmessage(XEvent *e);
-static int clockthreadfunc(void *arg);
 static void configure(Client *c);
 static void configurenotify(XEvent *e);
 static void configurerequest(XEvent *e);
@@ -171,6 +163,7 @@ static void incnmaster(const Arg *arg);
 static void keypress(XEvent *e);
 static void killclient(const Arg *arg);
 static void nextlayout(const Arg *arg);
+static int nextminutems(void);
 static void manage(Window w, XWindowAttributes *wa);
 static void mappingnotify(XEvent *e);
 static void maprequest(XEvent *e);
@@ -258,7 +251,7 @@ static void (*handler[LASTEvent]) (XEvent *) = {
 	[UnmapNotify] = unmapnotify
 };
 static Atom wmatom[WMLast], netatom[NetLast];
-static atomic_int running = 1;
+static int running = 1;
 static Cur *cursor[CurLast];
 static Clr **scheme;
 static Display *dpy;
@@ -556,31 +549,6 @@ clientmessage(XEvent *e)
 		if (c != selmon->sel && !c->isurgent)
 			seturgent(c, 1);
 	}
-}
-
-int
-clockthreadfunc(void *arg)
-{
-	clockthreadfunc_arg *func_arg = (clockthreadfunc_arg*) arg;
-	struct timespec ts;
-
-	mtx_lock(&func_arg->mtx);
-	while (running) {
-		timespec_get(&ts, TIME_UTC);
-		ts.tv_sec += 60 - ts.tv_sec % 60;
-		if (cnd_timedwait(&func_arg->cnd, &func_arg->mtx, &ts) == thrd_error)
-			break;
-		mtx_unlock(&func_arg->mtx);
-
-		/* the main thread holds the same lock while running handlers */
-		XLockDisplay(dpy);
-		updatestatus();
-		XUnlockDisplay(dpy);
-
-		mtx_lock(&func_arg->mtx);
-	}
-	mtx_unlock(&func_arg->mtx);
-	return 0;
 }
 
 void
@@ -1346,6 +1314,15 @@ nextlayout(const Arg *arg)
 	setlayout(&setarg);
 }
 
+int
+nextminutems(void)
+{
+	struct timespec ts;
+
+	timespec_get(&ts, TIME_UTC);
+	return (60 - ts.tv_sec % 60) * 1000 - ts.tv_nsec / 1000000;
+}
+
 Client *
 nexttiled(Client *c)
 {
@@ -1542,6 +1519,7 @@ void
 run(void)
 {
 	XEvent ev;
+	struct pollfd xfd = { .fd = ConnectionNumber(dpy), .events = POLLIN };
 	int i;
 
 	/* autostart */
@@ -1553,14 +1531,21 @@ run(void)
 	updatestatus();
 
 	/* main event loop */
-	while (running && !XNextEvent(dpy, &ev))
-	{
-		XLockDisplay(dpy);
-		if (xkbEventType != NoEventMask && ev.type == xkbEventType)
-			xkbevent((XkbEvent*) &ev);
-		else if (handler[ev.type])
-			handler[ev.type](&ev); /* call handler */
-		XUnlockDisplay(dpy);
+	while (running) {
+		if (XPending(dpy)) {
+			if (XNextEvent(dpy, &ev))
+				break;
+			if (xkbEventType != NoEventMask && ev.type == xkbEventType)
+				xkbevent((XkbEvent*) &ev);
+			else if (handler[ev.type])
+				handler[ev.type](&ev); /* call handler */
+		} else {
+			poll(&xfd, 1, nextminutems());
+			if (xfd.revents & (POLLHUP | POLLERR))
+				break;
+			if (!XPending(dpy))
+				updatestatus(); /* minute boundary reached */
+		}
 	}
 }
 
@@ -2338,23 +2323,12 @@ zoom(const Arg *arg)
 int
 main(int argc, char *argv[])
 {
-	clockthreadfunc_arg *clockthread_arg = malloc(sizeof(clockthreadfunc_arg));
-	thrd_t clockthread;
-
 	if (argc == 2 && !strcmp("-v", argv[1]))
 		die("dwm-"VERSION);
 	else if (argc != 1)
 		die("usage: dwm [-v]");
-	else if (clockthread_arg == NULL)
-		die("failed to allocate memory");
-	else if (cnd_init(&clockthread_arg->cnd) != thrd_success
-			 || mtx_init(&clockthread_arg->mtx, mtx_plain) != thrd_success) {
-		die("failed to initialize data");
-	}
 	if (!setlocale(LC_CTYPE, "") || !XSupportsLocale())
 		fputs("warning: no locale support\n", stderr);
-	if(XInitThreads() == 0)
-		die("unable to initialize Xorg thread support");
 	if (!(dpy = XOpenDisplay(NULL)))
 		die("dwm: cannot open display");
 	checkotherwm();
@@ -2364,26 +2338,7 @@ main(int argc, char *argv[])
 		die("pledge");
 #endif /* __OpenBSD__ */
 	scan();
-
-	if (thrd_create(&clockthread,
-					clockthreadfunc,
-					(void*)clockthread_arg) != thrd_success) {
-		die("unable to create a clock thread");
-	}
-
 	run();
-
-	mtx_lock(&clockthread_arg->mtx);
-	cnd_broadcast(&clockthread_arg->cnd);
-	mtx_unlock(&clockthread_arg->mtx);
-
-	if (thrd_join(clockthread, NULL) != thrd_success) {
-		die("unable to join to a clock thread");
-	}
-	cnd_destroy(&clockthread_arg->cnd);
-	mtx_destroy(&clockthread_arg->mtx);
-	free(clockthread_arg);
-
 	cleanup();
 	XCloseDisplay(dpy);
 	return EXIT_SUCCESS;
