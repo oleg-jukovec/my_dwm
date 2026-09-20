@@ -17,13 +17,13 @@ options:
 .c.o:
 	${CC} -c ${CFLAGS} $<
 
-${OBJ}: config.h config.mk
+${OBJ}: config.h appearance.h config.mk
 
 dwm: ${OBJ}
 	${CC} -o $@ dmenu.o dwm.o drw.o util.o ${LDFLAGS}
 
 clean:
-	rm -f dwm stest ${OBJ}
+	rm -f dwm ${OBJ}
 
 install: all
 	mkdir -p ${DESTDIR}${PREFIX}/bin
