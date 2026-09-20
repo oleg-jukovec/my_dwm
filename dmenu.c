@@ -40,6 +40,7 @@ static int mw, mh;
 static int inputw = 0;
 static int lrpad; /* sum of left and right padding */
 static struct item *items = NULL;
+static size_t nitems;
 static struct item *matches, *matchend;
 static struct item *prev, *curr, *next, *sel;
 static int screen;
@@ -471,102 +472,87 @@ paste(void)
 	drawmenu();
 }
 
-/* TODO: temporary */
-#define EXECLISTBASE 1024
-static char **execlist = NULL;
-static int execlistsz = 0;
-static int execlistlen = 0;
-
 static int
-execcmp(const void *l, const void *r) {
-	const char* ll = *(const char**)l;
-	const char* rr = *(const char**)r;
-	return strcmp(ll,rr);
-}
-
-static int
-addexec(char *execname) {
-	char **tmp, *dup;
-
-	if (execlistlen == execlistsz) {
-		tmp = realloc(execlist, sizeof(char*) * (execlistsz + EXECLISTBASE));
-		if (tmp == NULL)
-			return -1;
-		execlist = tmp;
-		execlistsz += EXECLISTBASE;
-	}
-	if ((dup = strdup(execname)) == NULL)
-		return -1;
-	execlist[execlistlen++] = dup;
-	return 0;
+itemcmp(const void *l, const void *r)
+{
+	return strcmp(((const struct item *)l)->text, ((const struct item *)r)->text);
 }
 
 static void
-addallexec(char *basepath) {
+addexec(const char *name)
+{
+	static size_t size;
+
+	if (nitems + 1 >= size / sizeof *items)
+		if (!(items = realloc(items, (size += BUFSIZ))))
+			die("cannot realloc %u bytes:", size);
+	if (!(items[nitems].text = strdup(name)))
+		die("cannot strdup:");
+	items[nitems].out = 0;
+	nitems++;
+}
+
+static void
+addallexec(const char *basepath)
+{
 	char path[PATH_MAX];
 	DIR *dir;
 	struct dirent *d;
 	struct stat st;
 
-	if ((dir = opendir(basepath))) {
-		while ((d = readdir(dir))) {
-			if (snprintf(path, PATH_MAX, "%s/%s", basepath, d->d_name) > 0) {
-				if (!stat(path, &st)
-					&& S_ISREG(st.st_mode)
-					&& access(path, X_OK) == 0
-					&& addexec(d->d_name) < 0)
-					break;
-			}
-		}
-		closedir(dir);
+	if (!(dir = opendir(basepath)))
+		return;
+	while ((d = readdir(dir))) {
+		if (snprintf(path, sizeof path, "%s/%s", basepath, d->d_name) > 0
+		&& !stat(path, &st) && S_ISREG(st.st_mode) && access(path, X_OK) == 0)
+			addexec(d->d_name);
 	}
+	closedir(dir);
 }
-
-static void
-addallexecpath() {
-	char *path;
-	if ((path = getenv("PATH")) != NULL) {
-		char *duppath = strdup(path),
-			 *curpath = duppath,
-			 *endpath;
-		do {
-			endpath = strchr(curpath, ':');
-			if (endpath)
-				*endpath = '\0';
-			addallexec(curpath);
-			curpath = endpath + 1;
-		} while (endpath);
-		free(duppath);
-
-		qsort(execlist, execlistlen, sizeof(char*), execcmp);
-	}
-}
-/* TODO: temporary end */
 
 static void
 readstdin(void)
 {
-	size_t i, imax = 0, size = 0;
+	char *path, *duppath, *curpath, *endpath;
+	size_t i, j, imax = 0;
 	unsigned int tmpmax = 0;
 
-	addallexecpath();
+	if (!(path = getenv("PATH")) || !(duppath = strdup(path)))
+		return;
+	curpath = duppath;
+	do {
+		endpath = strchr(curpath, ':');
+		if (endpath)
+			*endpath = '\0';
+		addallexec(curpath);
+		curpath = endpath + 1;
+	} while (endpath);
+	free(duppath);
 
-	/* add each executable from $PATH to the item list */
-	for (i = 0; i < execlistlen; i++) {
-		if (i + 1 >= size / sizeof *items)
-			if (!(items = realloc(items, (size += BUFSIZ))))
-				die("cannot realloc %u bytes:", size);
-		items[i].text = execlist[i];
-		items[i].out = 0;
-		drw_font_getexts(drw->fonts, execlist[i], strlen(execlist[i]), &tmpmax, NULL);
+	if (!items)
+		return;
+
+	qsort(items, nitems, sizeof *items, itemcmp);
+
+	/* the same name can appear in several PATH directories */
+	for (i = 0, j = 0; i < nitems; i++) {
+		if (j && !strcmp(items[j - 1].text, items[i].text)) {
+			free(items[i].text);
+			continue;
+		}
+		items[j++] = items[i];
+	}
+	nitems = j;
+	items[nitems].text = NULL;
+
+	for (i = 0; i < nitems; i++) {
+		drw_font_getexts(drw->fonts, items[i].text, strlen(items[i].text), &tmpmax, NULL);
 		if (tmpmax > inputw) {
 			inputw = tmpmax;
 			imax = i;
 		}
 	}
-	if (items)
-		items[i].text = NULL;
-	inputw = items ? TEXTW(items[imax].text) : 0;
+	inputw = TEXTW(items[imax].text);
 }
 
 static char*
