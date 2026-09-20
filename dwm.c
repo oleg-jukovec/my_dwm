@@ -215,6 +215,7 @@ static void updatetitle(Client *c);
 static void updatewindowtype(Client *c);
 static void updatewmhints(Client *c);
 static void view(const Arg *arg);
+static unsigned int visiblecount(Monitor *m);
 static Client *wintoclient(Window w);
 static Monitor *wintomon(Window w);
 static int xerror(Display *dpy, XErrorEvent *ee);
@@ -1184,12 +1185,9 @@ maprequest(XEvent *e)
 void
 centered(Monitor *m)
 {
-	unsigned int n = 0;
+	unsigned int n = visiblecount(m);
 	Client *c;
 
-	for (c = m->clients; c; c = c->next)
-		if (ISVISIBLE(c))
-			n++;
 	if (n > 0) /* override layout symbol */
 		snprintf(m->ltsymbol, sizeof m->ltsymbol, "[C%d]", n);
 	for (c = nexttiled(m->clients); c; c = nexttiled(c->next))
@@ -1200,12 +1198,9 @@ centered(Monitor *m)
 void
 monocle(Monitor *m)
 {
-	unsigned int n = 0;
+	unsigned int n = visiblecount(m);
 	Client *c;
 
-	for (c = m->clients; c; c = c->next)
-		if (ISVISIBLE(c))
-			n++;
 	if (n > 0) /* override layout symbol */
 		snprintf(m->ltsymbol, sizeof m->ltsymbol, "[%d]", n);
 	for (c = nexttiled(m->clients); c; c = nexttiled(c->next))
@@ -2223,6 +2218,18 @@ view(const Arg *arg)
 	}
 	focus(NULL);
 	arrange(selmon);
+}
+
+unsigned int
+visiblecount(Monitor *m)
+{
+	unsigned int n = 0;
+	Client *c;
+
+	for (c = m->clients; c; c = c->next)
+		if (ISVISIBLE(c))
+			n++;
+	return n;
 }
 
 Client *
