@@ -546,21 +546,17 @@ addallexecpath() {
 static void
 readstdin(void)
 {
-	char *p;
 	size_t i, imax = 0, size = 0;
 	unsigned int tmpmax = 0;
 
 	addallexecpath();
 
-	/* read each line from stdin and add it to the item list */
+	/* add each executable from $PATH to the item list */
 	for (i = 0; i < execlistlen; i++) {
 		if (i + 1 >= size / sizeof *items)
 			if (!(items = realloc(items, (size += BUFSIZ))))
 				die("cannot realloc %u bytes:", size);
-		if ((p = strchr(execlist[i], '\n')))
-			*p = '\0';
-		if (!(items[i].text = execlist[i]))
-			die("cannot strdup %u bytes:", (execlist[i] ? strlen(execlist[i]) : 0) + 1);
+		items[i].text = execlist[i];
 		items[i].out = 0;
 		drw_font_getexts(drw->fonts, execlist[i], strlen(execlist[i]), &tmpmax, NULL);
 		if (tmpmax > inputw) {
