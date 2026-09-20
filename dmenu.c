@@ -603,8 +603,9 @@ setup(void)
 	XClassHint ch = {"dmenu", "dmenu"};
 
 	/* init appearance */
-	for (i = 0; i < SchemeLast; i++)
-		scheme[i] = drw_scm_create(drw, colors[i], 2);
+	if (!scheme[SchemeNorm])
+		for (i = 0; i < SchemeLast; i++)
+			scheme[i] = drw_scm_create(drw, colors[i], 2);
 
 	clip = XInternAtom(dpy, "CLIPBOARD",   False);
 	utf8 = XInternAtom(dpy, "UTF8_STRING", False);
